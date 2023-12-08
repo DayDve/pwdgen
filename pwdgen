@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+show_help() {
+  echo -e "  Usage: $(basename "${BASH_SOURCE[0]}") [options] [password_length]
+  Options:
+    --nosymbols      Exclude symbols (!@#$%^&*()+) from the password
+    --nonumbers      Exclude numbers from the password
+    --nolowercase    Exclude lowercase letters from the password
+    --nouppercase    Exclude uppercase letters from the password
+    --ignoresimilar  Ignore similar characters (oO0il1)
+    --duplicates     Allow duplicate characters in the password
+    --includespecific <characters> Include specific characters in the password
+    --help            Show this help message
+"
+  exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --nosymbols) USE_SYMBOLS=false ;;
+    --nonumbers) USE_NUMBERS=false ;;
+    --nolowercase) USE_LOWERCASE=false ;;
+    --nouppercase) USE_UPPERCASE=false ;;
+    --ignoresimilar) IGNORE_SIMILAR=true ;;
+    --duplicates) NO_DUPLICATES=false ;;
+    --includespecific) shift; INCLUDE_SPECIFIC="$1" ;;
+    --help)
+      echo -e "  ════════════════════════════════════════════════════════════════════════════
+                         Random password generator
+  ════════════════════════════════════════════════════════════════════════════"
+    show_help ;;
+    *)
+      if [[ "$1" =~ ^[0-9]+$ ]]; then
+        PASSWORD_LENGTH="$1"
+      else
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+      fi
+      ;;
+  esac
+  shift
+done
+
+
+PASSWORD_LENGTH=${PASSWORD_LENGTH:-8}
+
+USE_SYMBOLS=${USE_SYMBOLS:-true}
+USE_NUMBERS=${USE_NUMBERS:-true}
+USE_LOWERCASE=${USE_LOWERCASE:-true}
+USE_UPPERCASE=${USE_UPPERCASE:-true}
+IGNORE_SIMILAR=${IGNORE_SIMILAR:-false}
+NO_DUPLICATES=${NO_DUPLICATES:-true}
+INCLUDE_SPECIFIC=${INCLUDE_SPECIFIC:-""}
+
+LOWERCASE="abcdefghijklmnopqrstuvwxyz"
+UPPERCASE="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+NUMBERS="1234567890"
+SYMBOLS="!@#$%^&*()+"
+SIMILAR="oO0il1"
+
+CHARACTER_BASE=""
+$USE_SYMBOLS && CHARACTER_BASE+="$SYMBOLS"
+$USE_NUMBERS && CHARACTER_BASE+="$NUMBERS"
+$USE_LOWERCASE && CHARACTER_BASE+="$LOWERCASE"
+$USE_UPPERCASE && CHARACTER_BASE+="$UPPERCASE"
+$IGNORE_SIMILAR && CHARACTER_BASE=$(echo "$CHARACTER_BASE" | tr -d "${SIMILAR}")
+CHARACTER_BASE+="$INCLUDE_SPECIFIC"
+
+CHARACTER_BASE=$(echo "$CHARACTER_BASE" | grep -o . | sort -u | tr -d '\n')
+
+BASE_LENGTH=${#CHARACTER_BASE}
+if [ "$BASE_LENGTH" -lt 2 ]; then
+  echo "Unable to create a password with 1 or fewer available characters"
+elif [ "$NO_DUPLICATES" = true ] && [ "$BASE_LENGTH" -lt "$PASSWORD_LENGTH" ]; then
+  echo "There are not enough characters available to prevent duplicates"
+else
+  PASSWORD=""
+  for ((i = 0; i < PASSWORD_LENGTH; i++)); do
+    RANDOM_IDX=$((RANDOM % BASE_LENGTH))
+    CURRENT_CHAR="${CHARACTER_BASE:$RANDOM_IDX:1}"
+    PASSWORD+="$CURRENT_CHAR"
+
+    $NO_DUPLICATES && CHARACTER_BASE=$(echo "$CHARACTER_BASE" | sed "s/$CURRENT_CHAR//g")
+    BASE_LENGTH=${#CHARACTER_BASE}
+  done
+
+  echo "$PASSWORD"
+fi
